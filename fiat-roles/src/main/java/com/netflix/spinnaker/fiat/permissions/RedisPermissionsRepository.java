@@ -323,7 +323,9 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   @Override
   public Map<String, UserPermission> getAllById() {
     Set<String> allUsers =
-        scanSet(allUsersKey).stream().map(String::toLowerCase).collect(Collectors.toSet());
+        scanSet(SafeEncoder.encode(allUsersKey)).stream()
+            .map(String::toLowerCase)
+            .collect(Collectors.toSet());
 
     if (allUsers.isEmpty()) {
       return new HashMap<>(0);
