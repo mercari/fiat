@@ -41,6 +41,9 @@ import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 import redis.clients.jedis.*;
 import redis.clients.jedis.commands.BinaryJedisCommands;
 import redis.clients.jedis.util.SafeEncoder;
@@ -64,7 +67,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private static final String REDIS_READ_RETRY = "permissionsRepositoryRedisRead";
 
   private static final String KEY_PERMISSIONS = "permissions";
-  private static final String KEY_PERMISSIONS_JSON = "permissions-json";
+  private static final String KEY_PERMISSIONS_LZ4 = "permissions-lz4";
   private static final String KEY_ROLES = "roles";
   private static final String KEY_ALL_USERS = "users";
   private static final String KEY_ADMIN = "admin";
@@ -80,6 +83,8 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private final RedisPermissionRepositoryConfigProps configProps;
   private final RetryRegistry retryRegistry;
   private final AtomicReference<String> fallbackLastModified = new AtomicReference<>(null);
+  private final LZ4Compressor lz4Compressor;
+  private final LZ4SafeDecompressor lz4Decompressor;
 
   private final LoadingCache<String, UserPermission> unrestrictedPermission =
       Caffeine.newBuilder()
@@ -104,6 +109,10 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     this.prefix = configProps.getPrefix();
     this.resources = resources;
     this.retryRegistry = retryRegistry;
+
+    LZ4Factory factory = LZ4Factory.fastestInstance();
+    this.lz4Compressor = factory.fastCompressor();
+    this.lz4Decompressor = factory.safeDecompressor();
 
     this.allUsersKey = SafeEncoder.encode(String.format("%s:%s", prefix, KEY_ALL_USERS));
     this.adminKey =
@@ -237,7 +246,8 @@ public class RedisPermissionsRepository implements PermissionsRepository {
           bResources.add(new Tuple3<>(rt, userResourceKey, null));
         } else {
           byte[] redisBytes = objectMapper.writeValueAsBytes(redisValue);
-          bResources.add(new Tuple3<>(rt, userResourceKey, redisBytes));
+          byte[] compressed = lz4Compressor.compress(redisBytes);
+          bResources.add(new Tuple3<>(rt, userResourceKey, compressed));
         }
       }
 
@@ -305,8 +315,9 @@ public class RedisPermissionsRepository implements PermissionsRepository {
               if (v == null) {
                 return new HashMap<String, String>();
               }
-
-              return objectMapper.readValue(v, new TypeReference<Map<String, String>>() {});
+              byte[] decompressed = lz4Decompressor.decompress(v, 1000000);
+              return objectMapper.readValue(
+                  decompressed, new TypeReference<Map<String, String>>() {});
             });
   }
 
@@ -442,7 +453,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
   private byte[] userKey(String userId, ResourceType r) {
     return SafeEncoder.encode(
-        String.format("%s:%s:%s:%s", prefix, KEY_PERMISSIONS_JSON, userId, r.keySuffix()));
+        String.format("%s:%s:%s:%s", prefix, KEY_PERMISSIONS_LZ4, userId, r.keySuffix()));
   }
 
   private byte[] roleKey(Role role) {
