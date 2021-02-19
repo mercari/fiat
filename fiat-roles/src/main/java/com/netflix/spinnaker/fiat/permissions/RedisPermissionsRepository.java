@@ -221,7 +221,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
               configProps.getRepository().getPutTimeout());
 
       Set<Role> existingRoles =
-          getRedisUserRoleMap(timeoutContext, userId, ResourceType.ROLE).values().stream()
+          getRedisUserResourceMap(timeoutContext, userId, ResourceType.ROLE).values().stream()
               .map(
                   (ThrowingFunction<String, Role>)
                       serialized -> objectMapper.readValue(serialized, Role.class))
@@ -292,7 +292,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     return getFromRedis(id);
   }
 
-  public Map<String, String> getRedisUserRoleMap(
+  public Map<String, String> getRedisUserResourceMap(
       TimeoutContext ctx, String id, ResourceType resourceType) {
     byte[] key = userKey(id, resourceType);
 
@@ -329,7 +329,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       for (Resource r : resources) {
         ResourceType resourceType = r.getResourceType();
         Map<String, String> resourcePermissions =
-            getRedisUserRoleMap(timeoutContext, id, resourceType);
+            getRedisUserResourceMap(timeoutContext, id, resourceType);
 
         if (resourcePermissions != null) {
           userPermission.addResources(extractResources(resourceType, resourcePermissions));
@@ -406,7 +406,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
               configProps.getRepository().getRemoveTimeout());
 
       Map<String, String> userRolesById =
-          getRedisUserRoleMap(timeoutContext, id, ResourceType.ROLE);
+          getRedisUserResourceMap(timeoutContext, id, ResourceType.ROLE);
       byte[] bId = SafeEncoder.encode(id);
 
       redisClientDelegate.withMultiKeyPipeline(
