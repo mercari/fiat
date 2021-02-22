@@ -41,9 +41,7 @@ import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4SafeDecompressor;
+import net.jpountz.lz4.*;
 import redis.clients.jedis.*;
 import redis.clients.jedis.commands.BinaryJedisCommands;
 import redis.clients.jedis.util.SafeEncoder;
@@ -83,8 +81,8 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private final RedisPermissionRepositoryConfigProps configProps;
   private final RetryRegistry retryRegistry;
   private final AtomicReference<String> fallbackLastModified = new AtomicReference<>(null);
-  private final LZ4Compressor lz4Compressor;
-  private final LZ4SafeDecompressor lz4Decompressor;
+  private final LZ4CompressorWithLength lz4Compressor;
+  private final LZ4DecompressorWithLength lz4Decompressor;
 
   private final LoadingCache<String, UserPermission> unrestrictedPermission =
       Caffeine.newBuilder()
@@ -111,8 +109,8 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     this.retryRegistry = retryRegistry;
 
     LZ4Factory factory = LZ4Factory.fastestInstance();
-    this.lz4Compressor = factory.fastCompressor();
-    this.lz4Decompressor = factory.safeDecompressor();
+    this.lz4Compressor = new LZ4CompressorWithLength(factory.fastCompressor());
+    this.lz4Decompressor = new LZ4DecompressorWithLength(factory.fastDecompressor());
 
     this.allUsersKey = SafeEncoder.encode(String.format("%s:%s", prefix, KEY_ALL_USERS));
     this.adminKey =
@@ -315,7 +313,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
               if (v == null) {
                 return new HashMap<String, String>();
               }
-              byte[] decompressed = lz4Decompressor.decompress(v, 1000000);
+              byte[] decompressed = lz4Decompressor.decompress(v);
               return objectMapper.readValue(
                   decompressed, new TypeReference<Map<String, String>>() {});
             });

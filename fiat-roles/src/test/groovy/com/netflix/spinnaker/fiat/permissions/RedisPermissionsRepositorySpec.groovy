@@ -32,6 +32,8 @@ import com.netflix.spinnaker.kork.jedis.JedisClientDelegate
 import com.netflix.spinnaker.kork.jedis.RedisClientDelegate
 import io.github.resilience4j.retry.RetryRegistry
 import net.jpountz.lz4.LZ4Compressor
+import net.jpountz.lz4.LZ4CompressorWithLength
+import net.jpountz.lz4.LZ4DecompressorWithLength
 import net.jpountz.lz4.LZ4Factory
 import net.jpountz.lz4.LZ4SafeDecompressor
 import redis.clients.jedis.Jedis
@@ -75,10 +77,10 @@ class RedisPermissionsRepositorySpec extends Specification {
   PausableRedisClientDelegate redisClientDelegate
 
   @Shared
-  LZ4Compressor lz4compressor
+  LZ4CompressorWithLength lz4compressor
 
   @Shared
-  LZ4SafeDecompressor lz4decompressor
+  LZ4DecompressorWithLength lz4decompressor
 
   @Subject
   RedisPermissionsRepository repo
@@ -91,8 +93,8 @@ class RedisPermissionsRepositorySpec extends Specification {
     jedis.flushDB()
     redisClientDelegate = new PausableRedisClientDelegate(new JedisClientDelegate(embeddedRedis.pool as JedisPool))
     LZ4Factory factory = LZ4Factory.fastestInstance()
-    lz4compressor = factory.fastCompressor()
-    lz4decompressor = factory.safeDecompressor()
+    lz4compressor = new LZ4CompressorWithLength(factory.fastCompressor())
+    lz4decompressor = new LZ4DecompressorWithLength(factory.fastDecompressor())
   }
 
   private static class TestClock extends Clock {
@@ -198,7 +200,7 @@ class RedisPermissionsRepositorySpec extends Specification {
       return null
     }
 
-    return SafeEncoder.encode(lz4decompressor.decompress(val, 1000000))
+    return SafeEncoder.encode(lz4decompressor.decompress(val))
   }
 
   def "should fail if timeout is exceeded"() {
