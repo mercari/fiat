@@ -308,16 +308,16 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       TimeoutContext ctx, String id, ResourceType resourceType) throws IOException {
     byte[] redisData = getRedisUserBytes(ctx, id, resourceType);
 
+    if (redisData == null) {
+      return new HashMap<>();
+    }
+
     Class<? extends Resource> modelClazz =
         resources.stream()
             .filter(resource -> resource.getResourceType().equals(resourceType))
             .findFirst()
             .orElseThrow(IllegalArgumentException::new)
             .getClass();
-
-    if (redisData == null) {
-      return new HashMap<>();
-    }
 
     return objectMapper.readerForMapOf(modelClazz).readValue(redisData);
   }
