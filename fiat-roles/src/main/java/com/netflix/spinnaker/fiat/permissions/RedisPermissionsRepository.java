@@ -319,14 +319,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       return new HashMap<>();
     }
 
-    val m = objectMapper.readValue(redisData, new TypeReference<Map<String, Object>>() {});
-
-    return m.entrySet().stream()
-        .collect(
-            Collectors.toMap(
-                Map.Entry::getKey,
-                (ThrowingFunction<Map.Entry<String, Object>, ? extends Resource>)
-                    e -> objectMapper.convertValue(e.getValue(), modelClazz)));
+    return objectMapper.readerForMapOf(modelClazz).readValue(redisData);
   }
 
   public Map<String, Role> getRedisUserRoleMap(TimeoutContext ctx, String id) throws IOException {
