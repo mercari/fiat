@@ -17,7 +17,6 @@
 package com.netflix.spinnaker.fiat.permissions;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -320,13 +319,13 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       return new HashMap<>();
     }
 
-    val m = objectMapper.readValue(redisData, new TypeReference<Map<String, JsonNode>>() {});
+    val m = objectMapper.readValue(redisData, new TypeReference<Map<String, Object>>() {});
 
     return m.entrySet().stream()
         .collect(
             Collectors.toMap(
                 Map.Entry::getKey,
-                (ThrowingFunction<Map.Entry<String, JsonNode>, ? extends Resource>)
+                (ThrowingFunction<Map.Entry<String, Object>, ? extends Resource>)
                     e -> objectMapper.convertValue(e.getValue(), modelClazz)));
   }
 
