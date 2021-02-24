@@ -31,11 +31,9 @@ import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
 import com.netflix.spinnaker.kork.jedis.JedisClientDelegate
 import com.netflix.spinnaker.kork.jedis.RedisClientDelegate
 import io.github.resilience4j.retry.RetryRegistry
-import net.jpountz.lz4.LZ4Compressor
 import net.jpountz.lz4.LZ4CompressorWithLength
 import net.jpountz.lz4.LZ4DecompressorWithLength
 import net.jpountz.lz4.LZ4Factory
-import net.jpountz.lz4.LZ4SafeDecompressor
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
 import redis.clients.jedis.util.SafeEncoder
