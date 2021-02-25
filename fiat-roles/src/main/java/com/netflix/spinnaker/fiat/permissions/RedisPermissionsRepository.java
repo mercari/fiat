@@ -29,7 +29,6 @@ import com.netflix.spinnaker.kork.exceptions.IntegrationException;
 import com.netflix.spinnaker.kork.exceptions.SpinnakerException;
 import com.netflix.spinnaker.kork.jedis.RedisClientDelegate;
 import io.github.resilience4j.retry.RetryRegistry;
-import io.vavr.Tuple3;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
@@ -196,6 +195,11 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     }
   }
 
+  private static class PutUpdateData {
+    public byte[] userResourceKey;
+    public byte[] compressedData;
+  }
+
   @Override
   public RedisPermissionsRepository put(@NonNull UserPermission permission) {
     String userId = permission.getId();
@@ -217,19 +221,21 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     try {
       Set<Role> existingRoles = new HashSet<>(getUserRoleMapFromRedis(userId).values());
 
-      List<Tuple3<ResourceType, byte[], byte[]>> bResources = new ArrayList<>();
-
+      // These updates are pre-prepared to reduce work done during the multi-key pipeline
+      List<PutUpdateData> updateData = new ArrayList<>();
       for (ResourceType rt : resourceTypes) {
         Map<String, Resource> redisValue = resourceTypeToRedisValue.get(rt);
         byte[] userResourceKey = userKey(userId, rt);
+        PutUpdateData pud = new PutUpdateData();
+        pud.userResourceKey = userResourceKey;
 
         if (redisValue == null || redisValue.size() == 0) {
-          bResources.add(new Tuple3<>(rt, userResourceKey, null));
+          pud.compressedData = null;
         } else {
-          byte[] redisBytes = objectMapper.writeValueAsBytes(redisValue);
-          byte[] compressed = lz4Compressor.compress(redisBytes);
-          bResources.add(new Tuple3<>(rt, userResourceKey, compressed));
+          pud.compressedData = lz4Compressor.compress(objectMapper.writeValueAsBytes(redisValue));
         }
+
+        updateData.add(pud);
       }
 
       AtomicReference<Response<List<String>>> serverTime = new AtomicReference<>();
@@ -246,13 +252,13 @@ public class RedisPermissionsRepository implements PermissionsRepository {
                 .filter(it -> !permission.getRoles().contains(it))
                 .forEach(role -> pipeline.srem(roleKey(role), bUserId));
 
-            for (Tuple3<ResourceType, byte[], byte[]> r : bResources) {
-              if (r._3 == null) {
-                pipeline.del(r._2);
+            for (PutUpdateData pud : updateData) {
+              if (pud.compressedData == null) {
+                pipeline.del(pud.userResourceKey);
               } else {
                 byte[] tempKey = SafeEncoder.encode(UUID.randomUUID().toString());
-                pipeline.set(tempKey, r._3);
-                pipeline.rename(tempKey, r._2);
+                pipeline.set(tempKey, pud.compressedData);
+                pipeline.rename(tempKey, pud.userResourceKey);
               }
             }
 
