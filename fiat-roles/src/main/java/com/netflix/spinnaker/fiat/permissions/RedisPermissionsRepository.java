@@ -215,14 +215,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
             });
 
     try {
-
-      TimeoutContext timeoutContext =
-          new TimeoutContext(
-              String.format("put for user permissions: %s", userId),
-              clock,
-              configProps.getRepository().getPutTimeout());
-
-      Set<Role> existingRoles = new HashSet<>(getRedisUserRoleMap(timeoutContext, userId).values());
+      Set<Role> existingRoles = new HashSet<>(getUserRoleMapFromRedis(userId).values());
 
       List<Tuple3<ResourceType, byte[], byte[]>> bResources = new ArrayList<>();
 
@@ -290,11 +283,16 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     return getFromRedis(id);
   }
 
-  public byte[] getRedisUserBytes(TimeoutContext ctx, String id, ResourceType resourceType) {
+  public byte[] getUserResourceBytesFromRedis(String id, ResourceType resourceType) {
+    TimeoutContext timeoutContext =
+        new TimeoutContext(
+            String.format("get user resource from redis: %s (%s)", id, resourceType),
+            clock,
+            configProps.getRepository().getGetUserResourceTimeout());
     byte[] key = userKey(id, resourceType);
 
     byte[] compressedData =
-        redisRead(ctx, (ThrowingFunction<BinaryJedisCommands, byte[]>) c -> c.get(key));
+        redisRead(timeoutContext, (ThrowingFunction<BinaryJedisCommands, byte[]>) c -> c.get(key));
 
     if (compressedData == null || compressedData.length == 0) {
       return null;
@@ -303,9 +301,9 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     return lz4Decompressor.decompress(compressedData);
   }
 
-  public Map<String, Resource> getRedisUserResourceMap(
-      TimeoutContext ctx, String id, ResourceType resourceType) throws IOException {
-    byte[] redisData = getRedisUserBytes(ctx, id, resourceType);
+  public Map<String, Resource> getUserResourceMapFromRedis(String id, ResourceType resourceType)
+      throws IOException {
+    byte[] redisData = getUserResourceBytesFromRedis(id, resourceType);
 
     if (redisData == null) {
       return new HashMap<>();
@@ -321,8 +319,8 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     return objectMapper.readerForMapOf(modelClazz).readValue(redisData);
   }
 
-  public Map<String, Role> getRedisUserRoleMap(TimeoutContext ctx, String id) throws IOException {
-    byte[] redisData = getRedisUserBytes(ctx, id, ResourceType.ROLE);
+  public Map<String, Role> getUserRoleMapFromRedis(String id) throws IOException {
+    byte[] redisData = getUserResourceBytesFromRedis(id, ResourceType.ROLE);
 
     if (redisData == null) {
       return new HashMap<>();
@@ -349,8 +347,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
       for (Resource r : resources) {
         ResourceType resourceType = r.getResourceType();
-        Map<String, Resource> resourcePermissions =
-            getRedisUserResourceMap(timeoutContext, id, resourceType);
+        Map<String, Resource> resourcePermissions = getUserResourceMapFromRedis(id, resourceType);
 
         if (resourcePermissions != null && !resourcePermissions.isEmpty()) {
           userPermission.addResources(resourcePermissions.values());
@@ -420,13 +417,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   @Override
   public void remove(@NonNull String id) {
     try {
-      TimeoutContext timeoutContext =
-          new TimeoutContext(
-              String.format("remove for user: %s", id),
-              clock,
-              configProps.getRepository().getRemoveTimeout());
-
-      Map<String, Role> userRolesById = getRedisUserRoleMap(timeoutContext, id);
+      Map<String, Role> userRolesById = getUserRoleMapFromRedis(id);
       byte[] bId = SafeEncoder.encode(id);
 
       redisClientDelegate.withMultiKeyPipeline(

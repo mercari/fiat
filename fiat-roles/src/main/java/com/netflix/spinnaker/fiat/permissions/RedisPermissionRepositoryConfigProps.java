@@ -30,8 +30,7 @@ public class RedisPermissionRepositoryConfigProps {
   public static class Repository {
     private Duration getPermissionTimeout = Duration.ofSeconds(1);
     private Duration checkLastModifiedTimeout = Duration.ofMillis(50);
-    private Duration removeTimeout = Duration.ofSeconds(1);
-    private Duration putTimeout = Duration.ofSeconds(1);
+    private Duration getUserResourceTimeout = Duration.ofSeconds(1);
 
     public Duration getGetPermissionTimeout() {
       return getPermissionTimeout;
@@ -49,20 +48,12 @@ public class RedisPermissionRepositoryConfigProps {
       this.checkLastModifiedTimeout = checkLastModifiedTimeout;
     }
 
-    public Duration getRemoveTimeout() {
-      return removeTimeout;
+    public Duration getGetUserResourceTimeout() {
+      return getUserResourceTimeout;
     }
 
-    public void setRemoveTimeout(Duration removeTimeout) {
-      this.removeTimeout = removeTimeout;
-    }
-
-    public Duration getPutTimeout() {
-      return putTimeout;
-    }
-
-    public void setPutTimeout(Duration putTimeout) {
-      this.putTimeout = putTimeout;
+    public void setGetUserResourceTimeout(Duration getUserResourceTimeout) {
+      this.getUserResourceTimeout = getUserResourceTimeout;
     }
   }
 }
