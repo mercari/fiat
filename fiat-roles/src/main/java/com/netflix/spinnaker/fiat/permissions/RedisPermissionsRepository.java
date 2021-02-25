@@ -152,13 +152,12 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private UserPermission getUnrestrictedUserPermission() {
     String serverLastModified = NO_LAST_MODIFIED;
     byte[] bServerLastModified =
-        (byte[])
-            redisRead(
-                new TimeoutContext(
-                    "checkLastModified",
-                    clock,
-                    configProps.getRepository().getCheckLastModifiedTimeout()),
-                c -> c.get(SafeEncoder.encode(unrestrictedLastModifiedKey())));
+        redisRead(
+            new TimeoutContext(
+                "checkLastModified",
+                clock,
+                configProps.getRepository().getCheckLastModifiedTimeout()),
+            c -> c.get(SafeEncoder.encode(unrestrictedLastModifiedKey())));
     if (bServerLastModified == null || bServerLastModified.length == 0) {
       log.debug(
           "no last modified time available in redis for user {} using default of {}",
